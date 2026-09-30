@@ -6,6 +6,8 @@ import { ConsultationCard } from "./ConsultationCard.tsx";
 import { checkConsultation, cloneConsultation, consultationSendBlockers, createConsultationDossiers, type ConsultationDossier } from "./consultation.ts";
 import { MilitaryCard } from "./MilitaryCard.tsx";
 import { checkMilitary, cloneMilitary, createMilitaryDossiers, militarySendBlockers, type MilitaryDossier } from "./military.ts";
+import { OrderWorkCard } from "./OrderWorkCard.tsx";
+import { createOrderDossiers, type OrderDossier } from "./orderWork.ts";
 import { LiconfirmCard } from "./LiconfirmCard.tsx";
 import { checkLiconfirm, cloneLiconfirm, createLiconfirmDossiers, liconfirmSendBlockers, type LiconfirmDossier } from "./liconfirm.ts";
 import { TnvedCard } from "./TnvedCard.tsx";
@@ -73,6 +75,7 @@ export function App() {
   const seedLiconfirm = useMemo(() => createLiconfirmDossiers(), []);
   const seedConsultation = useMemo(() => createConsultationDossiers(), []);
   const seedMilitary = useMemo(() => createMilitaryDossiers(), []);
+  const [orderWorks, setOrderWorks] = useState<Record<number, OrderDossier>>(() => createOrderDossiers());
   const [works, setWorks] = useState<Work[]>(() => createSeedWorks(started));
   const [dossiers, setDossiers] = useState<Record<number, ExcontDossier>>(() => createExcontDossiers());
   const [customs, setCustoms] = useState<Record<number, CustomsDossier>>(() => createCustomsDossiers());
@@ -478,7 +481,7 @@ export function App() {
       </nav>
       <main className="workspace">
         <p className="notice">
-          Демонстрационные данные той же формы, что карточки ДН, ЗиО, кода ТН ВЭД, подтверждения лицензии, консультации и гражданской продукции. Строка соединения SQL в репозиториях не задана.
+          Демонстрационные данные той же формы, что карточки ДН, ЗиО, кода ТН ВЭД, подтверждения лицензии, консультации, гражданской продукции и заявки на услуги. Строка соединения SQL в репозиториях не задана.
         </p>
         {activeTab.kind === "plan" && (
           <WorkPlan
@@ -625,7 +628,34 @@ export function App() {
             onClose={() => requestClose(activeTab.key, activeRow.work.id)}
           />
         )}
-        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && activeRow.work.type !== "tnved" && activeRow.work.type !== "liconfirm" && activeRow.work.type !== "consultation" && activeRow.work.type !== "military" && (
+        {activeTab.kind === "work" && activeRow && activeRow.work.type === "order" && orderWorks[activeRow.work.id] && (
+          <OrderWorkCard
+            work={activeRow.work}
+            dossier={orderWorks[activeRow.work.id]}
+            notice={cardNotice}
+            onChange={(next) => setOrderWorks((current) => ({ ...current, [next.workId]: next }))}
+            onAccept={() => {
+              setWorks((current) => current.map((work) => work.id === activeRow.work.id
+                ? { ...work, condition: "close", conditionName: "Закрыта" }
+                : work));
+              closeTab(activeTab.key);
+            }}
+            onToggleStop={() => {
+              setWorks((current) => current.map((work) => work.id === activeRow.work.id
+                ? { ...work, isStop: !work.isStop }
+                : work));
+            }}
+            onReturn={(comment) => {
+              setWorks((current) => current.map((work) => work.id === activeRow.work.id
+                ? { ...work, condition: "cancel", conditionName: "Аннулирована", comment }
+                : work));
+              closeTab(activeTab.key);
+            }}
+            onHistory={() => setCardNotice("История работы открывается базовым WorkUserControl. Без SQL журнал пуст.")}
+            onClose={() => closeTab(activeTab.key)}
+          />
+        )}
+        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && activeRow.work.type !== "tnved" && activeRow.work.type !== "liconfirm" && activeRow.work.type !== "consultation" && activeRow.work.type !== "military" && activeRow.work.type !== "order" && (
           <WorkCard row={activeRow} onClose={() => closeTab(activeTab.key)} onOrder={openOrder} />
         )}
         {activeTab.kind === "order" && activeWork?.orderUrl && (
