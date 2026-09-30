@@ -8,6 +8,8 @@ import { MilitaryCard } from "./MilitaryCard.tsx";
 import { checkMilitary, cloneMilitary, createMilitaryDossiers, militarySendBlockers, type MilitaryDossier } from "./military.ts";
 import { OrderWorkCard } from "./OrderWorkCard.tsx";
 import { createOrderDossiers, type OrderDossier } from "./orderWork.ts";
+import { AlterationCard } from "./AlterationCard.tsx";
+import { alterationSendBlockers, cloneAlteration, createAlterationDossiers, type AlterationDossier } from "./alteration.ts";
 import { LiconfirmCard } from "./LiconfirmCard.tsx";
 import { checkLiconfirm, cloneLiconfirm, createLiconfirmDossiers, liconfirmSendBlockers, type LiconfirmDossier } from "./liconfirm.ts";
 import { TnvedCard } from "./TnvedCard.tsx";
@@ -76,6 +78,8 @@ export function App() {
   const seedConsultation = useMemo(() => createConsultationDossiers(), []);
   const seedMilitary = useMemo(() => createMilitaryDossiers(), []);
   const [orderWorks, setOrderWorks] = useState<Record<number, OrderDossier>>(() => createOrderDossiers());
+  const seedAlteration = useMemo(() => createAlterationDossiers(), []);
+  const [alteration, setAlteration] = useState<Record<number, AlterationDossier>>(() => createAlterationDossiers());
   const [works, setWorks] = useState<Work[]>(() => createSeedWorks(started));
   const [dossiers, setDossiers] = useState<Record<number, ExcontDossier>>(() => createExcontDossiers());
   const [customs, setCustoms] = useState<Record<number, CustomsDossier>>(() => createCustomsDossiers());
@@ -185,7 +189,13 @@ export function App() {
     const liconfirmDossier = liconfirm[workId];
     const consultationDossier = consultation[workId];
     const militaryDossier = military[workId];
+    const alterationDossier = alteration[workId];
     const description = dossier?.description ?? customsDossier?.description ?? tnvedDossier?.description ?? liconfirmDossier?.description ?? consultationDossier?.description ?? militaryDossier?.description;
+    if (alterationDossier && description == null) {
+      setDirty((current) => ({ ...current, [workId]: false }));
+      setCardNotice("Данные сохранены.");
+      return;
+    }
     if (description == null) return;
     setDirty((current) => ({ ...current, [workId]: false }));
     setWorks((current) => current.map((work) => {
@@ -204,16 +214,18 @@ export function App() {
     const liconfirmSource = seedLiconfirm[workId];
     const consultationSource = seedConsultation[workId];
     const militarySource = seedMilitary[workId];
-    if (!source && !customsSource && !tnvedSource && !liconfirmSource && !consultationSource && !militarySource) return;
+    const alterationSource = seedAlteration[workId];
+    if (!source && !customsSource && !tnvedSource && !liconfirmSource && !consultationSource && !militarySource && !alterationSource) return;
     if (source) setDossiers((current) => ({ ...current, [workId]: cloneDossier(source) }));
     if (customsSource) setCustoms((current) => ({ ...current, [workId]: cloneCustoms(customsSource) }));
     if (tnvedSource) setTnved((current) => ({ ...current, [workId]: cloneTnved(tnvedSource) }));
     if (liconfirmSource) setLiconfirm((current) => ({ ...current, [workId]: cloneLiconfirm(liconfirmSource) }));
     if (consultationSource) setConsultation((current) => ({ ...current, [workId]: cloneConsultation(consultationSource) }));
     if (militarySource) setMilitary((current) => ({ ...current, [workId]: cloneMilitary(militarySource) }));
+    if (alterationSource) setAlteration((current) => ({ ...current, [workId]: cloneAlteration(alterationSource) }));
     setDirty((current) => ({ ...current, [workId]: false }));
     setIssues([]);
-    setCardNotice(source && !customsSource && !tnvedSource && !liconfirmSource && !consultationSource && !militarySource ? "Данные перечитаны." : null);
+    setCardNotice(source && !customsSource && !tnvedSource && !liconfirmSource && !consultationSource && !militarySource && !alterationSource ? "Данные перечитаны." : null);
   }
 
   function requestSend(workId: number) {
@@ -313,6 +325,22 @@ export function App() {
       const found = checkMilitary(dossier);
       setIssues(found);
       const blockers = militarySendBlockers(dossier, work);
+      if (blockers.length > 0) {
+        setPendingSend(null);
+        setPendingWarns([]);
+        setCardNotice(blockers[0]);
+        return;
+      }
+      finishSend(workId);
+      return;
+    }
+    if (work.type === "alteration") {
+      const dossier = alteration[workId];
+      if (!dossier) {
+        setPendingSend(null);
+        return;
+      }
+      const blockers = alterationSendBlockers(dossier, work);
       if (blockers.length > 0) {
         setPendingSend(null);
         setPendingWarns([]);
@@ -466,7 +494,7 @@ export function App() {
                 className="close"
                 aria-label={`Закрыть ${tab.title}`}
                 onClick={() => {
-                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && (work.type === "excont" || work.type === "customUnion" || work.type === "tnved" || work.type === "liconfirm" || work.type === "consultation" || work.type === "military"))) {
+                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && (work.type === "excont" || work.type === "customUnion" || work.type === "tnved" || work.type === "liconfirm" || work.type === "consultation" || work.type === "military" || work.type === "alteration"))) {
                     requestClose(tab.key, tab.workId);
                   } else {
                     closeTab(tab.key);
@@ -481,7 +509,7 @@ export function App() {
       </nav>
       <main className="workspace">
         <p className="notice">
-          Демонстрационные данные той же формы, что карточки ДН, ЗиО, кода ТН ВЭД, подтверждения лицензии, консультации, гражданской продукции и заявки на услуги. Строка соединения SQL в репозиториях не задана.
+          Демонстрационные данные той же формы, что карточки ДН, ЗиО, кода ТН ВЭД, подтверждения лицензии, консультации, гражданской продукции, заявки на услуги и изменения. Строка соединения SQL в репозиториях не задана.
         </p>
         {activeTab.kind === "plan" && (
           <WorkPlan
@@ -655,7 +683,22 @@ export function App() {
             onClose={() => closeTab(activeTab.key)}
           />
         )}
-        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && activeRow.work.type !== "tnved" && activeRow.work.type !== "liconfirm" && activeRow.work.type !== "consultation" && activeRow.work.type !== "military" && activeRow.work.type !== "order" && (
+        {activeTab.kind === "work" && activeRow && activeRow.work.type === "alteration" && alteration[activeRow.work.id] && (
+          <AlterationCard
+            work={activeRow.work}
+            dossier={alteration[activeRow.work.id]}
+            notice={cardNotice}
+            onChange={(next) => {
+              setAlteration((current) => ({ ...current, [next.workId]: next }));
+              setDirty((current) => ({ ...current, [next.workId]: true }));
+            }}
+            onSave={() => saveDossier(activeRow.work.id)}
+            onReload={() => reloadDossier(activeRow.work.id)}
+            onSend={() => requestSend(activeRow.work.id)}
+            onClose={() => requestClose(activeTab.key, activeRow.work.id)}
+          />
+        )}
+        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && activeRow.work.type !== "tnved" && activeRow.work.type !== "liconfirm" && activeRow.work.type !== "consultation" && activeRow.work.type !== "military" && activeRow.work.type !== "order" && activeRow.work.type !== "alteration" && (
           <WorkCard row={activeRow} onClose={() => closeTab(activeTab.key)} onOrder={openOrder} />
         )}
         {activeTab.kind === "order" && activeWork?.orderUrl && (
