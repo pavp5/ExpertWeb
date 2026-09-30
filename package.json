@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/plan.test.ts src/excont.test.ts src/customs.test.ts src/tnved.test.ts"
+    "test": "node --experimental-strip-types --test src/plan.test.ts src/excont.test.ts src/customs.test.ts src/tnved.test.ts src/liconfirm.test.ts"
   },
   "dependencies": {
     "react": "^19.1.0",

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CURRENT_EXPERT, type Work } from "./domain.ts";
 import { CustomsCard } from "./CustomsCard.tsx";
 import { checkCustoms, cloneCustoms, createCustomsDossiers, customsSendBlockers, customsSendWarnings, type CustomsDossier } from "./customs.ts";
+import { LiconfirmCard } from "./LiconfirmCard.tsx";
+import { checkLiconfirm, cloneLiconfirm, createLiconfirmDossiers, liconfirmSendBlockers, type LiconfirmDossier } from "./liconfirm.ts";
 import { TnvedCard } from "./TnvedCard.tsx";
 import { checkTnved, cloneTnved, createTnvedDossiers, tnvedSendBlockers, type TnvedDossier } from "./tnved.ts";
 import { ExcontCard, sendBlockers } from "./ExcontCard.tsx";
@@ -64,10 +66,12 @@ export function App() {
   const seedDossiers = useMemo(() => createExcontDossiers(), []);
   const seedCustoms = useMemo(() => createCustomsDossiers(), []);
   const seedTnved = useMemo(() => createTnvedDossiers(), []);
+  const seedLiconfirm = useMemo(() => createLiconfirmDossiers(), []);
   const [works, setWorks] = useState<Work[]>(() => createSeedWorks(started));
   const [dossiers, setDossiers] = useState<Record<number, ExcontDossier>>(() => createExcontDossiers());
   const [customs, setCustoms] = useState<Record<number, CustomsDossier>>(() => createCustomsDossiers());
   const [tnved, setTnved] = useState<Record<number, TnvedDossier>>(() => createTnvedDossiers());
+  const [liconfirm, setLiconfirm] = useState<Record<number, LiconfirmDossier>>(() => createLiconfirmDossiers());
   const [dirty, setDirty] = useState<Record<number, boolean>>({});
   const [issues, setIssues] = useState<CheckIssue[]>([]);
   const [cardNotice, setCardNotice] = useState<string | null>(null);
@@ -167,10 +171,14 @@ export function App() {
     const dossier = dossiers[workId];
     const customsDossier = customs[workId];
     const tnvedDossier = tnved[workId];
-    const description = dossier?.description ?? customsDossier?.description ?? tnvedDossier?.description;
+    const liconfirmDossier = liconfirm[workId];
+    const description = dossier?.description ?? customsDossier?.description ?? tnvedDossier?.description ?? liconfirmDossier?.description;
     if (description == null) return;
     setDirty((current) => ({ ...current, [workId]: false }));
-    setWorks((current) => current.map((work) => work.id === workId ? { ...work, description } : work));
+    setWorks((current) => current.map((work) => {
+      if (work.id !== workId) return work;
+      return liconfirmDossier ? { ...work, description, comment: liconfirmDossier.comment } : { ...work, description };
+    }));
     setCardNotice(dossier ? "Данные работы сохранены." : "Данные сохранены.");
   }
 
@@ -178,13 +186,15 @@ export function App() {
     const source = seedDossiers[workId];
     const customsSource = seedCustoms[workId];
     const tnvedSource = seedTnved[workId];
-    if (!source && !customsSource && !tnvedSource) return;
+    const liconfirmSource = seedLiconfirm[workId];
+    if (!source && !customsSource && !tnvedSource && !liconfirmSource) return;
     if (source) setDossiers((current) => ({ ...current, [workId]: cloneDossier(source) }));
     if (customsSource) setCustoms((current) => ({ ...current, [workId]: cloneCustoms(customsSource) }));
     if (tnvedSource) setTnved((current) => ({ ...current, [workId]: cloneTnved(tnvedSource) }));
+    if (liconfirmSource) setLiconfirm((current) => ({ ...current, [workId]: cloneLiconfirm(liconfirmSource) }));
     setDirty((current) => ({ ...current, [workId]: false }));
     setIssues([]);
-    setCardNotice(source && !customsSource && !tnvedSource ? "Данные перечитаны." : null);
+    setCardNotice(source && !customsSource && !tnvedSource && !liconfirmSource ? "Данные перечитаны." : null);
   }
 
   function requestSend(workId: number) {
@@ -239,6 +249,24 @@ export function App() {
       finishSend(workId);
       return;
     }
+    if (work.type === "liconfirm") {
+      const dossier = liconfirm[workId];
+      if (!dossier) {
+        setPendingSend(null);
+        return;
+      }
+      const found = checkLiconfirm(dossier);
+      setIssues(found);
+      const blockers = liconfirmSendBlockers(dossier, work);
+      if (blockers.length > 0) {
+        setPendingSend(null);
+        setPendingWarns([]);
+        setCardNotice(blockers[0]);
+        return;
+      }
+      finishSend(workId);
+      return;
+    }
     const dossier = dossiers[workId];
     if (!dossier) {
       setPendingSend(null);
@@ -273,7 +301,7 @@ export function App() {
   }
 
   function finishSend(workId: number) {
-    const description = dossiers[workId]?.description ?? customs[workId]?.description ?? tnved[workId]?.description;
+    const description = dossiers[workId]?.description ?? customs[workId]?.description ?? tnved[workId]?.description ?? liconfirm[workId]?.description;
     setWorks((current) => current.map((work) => work.id === workId
       ? { ...work, condition: "agree", conditionName: "Утверждение", description: description ?? work.description }
       : work));
@@ -383,7 +411,7 @@ export function App() {
                 className="close"
                 aria-label={`Закрыть ${tab.title}`}
                 onClick={() => {
-                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && (work.type === "excont" || work.type === "customUnion" || work.type === "tnved"))) {
+                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && (work.type === "excont" || work.type === "customUnion" || work.type === "tnved" || work.type === "liconfirm"))) {
                     requestClose(tab.key, tab.workId);
                   } else {
                     closeTab(tab.key);
@@ -398,7 +426,7 @@ export function App() {
       </nav>
       <main className="workspace">
         <p className="notice">
-          Демонстрационные данные той же формы, что карточки ДН, ЗиО и кода ТН ВЭД. Строка соединения SQL в репозиториях не задана.
+          Демонстрационные данные той же формы, что карточки ДН, ЗиО, кода ТН ВЭД и подтверждения лицензии. Строка соединения SQL в репозиториях не задана.
         </p>
         {activeTab.kind === "plan" && (
           <WorkPlan
@@ -479,7 +507,29 @@ export function App() {
             onClose={() => requestClose(activeTab.key, activeRow.work.id)}
           />
         )}
-        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && activeRow.work.type !== "tnved" && (
+        {activeTab.kind === "work" && activeRow && activeRow.work.type === "liconfirm" && liconfirm[activeRow.work.id] && (
+          <LiconfirmCard
+            work={activeRow.work}
+            dossier={liconfirm[activeRow.work.id]}
+            issues={issues}
+            notice={cardNotice}
+            onChange={(next) => {
+              setLiconfirm((current) => ({ ...current, [next.workId]: next }));
+              setDirty((current) => ({ ...current, [next.workId]: true }));
+            }}
+            onSave={() => saveDossier(activeRow.work.id)}
+            onReload={() => reloadDossier(activeRow.work.id)}
+            onCheck={() => {
+              const found = checkLiconfirm(liconfirm[activeRow.work.id]);
+              setIssues(found);
+              setCardNotice(found.length === 0 ? "Ошибок нет." : "В работе обнаружены ошибки.");
+            }}
+            onSend={() => requestSend(activeRow.work.id)}
+            onSign={() => setCardNotice("Подписание создает документы через DocumentCreate и переносит работу в архив. В этом срезе подпись не ставится.")}
+            onClose={() => requestClose(activeTab.key, activeRow.work.id)}
+          />
+        )}
+        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && activeRow.work.type !== "tnved" && activeRow.work.type !== "liconfirm" && (
           <WorkCard row={activeRow} onClose={() => closeTab(activeTab.key)} onOrder={openOrder} />
         )}
         {activeTab.kind === "order" && activeWork?.orderUrl && (
