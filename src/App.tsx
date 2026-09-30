@@ -154,10 +154,18 @@ export function App() {
         <div className="brand">
           <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true">
             <circle cx="18" cy="18" r="16" fill="#d7e4f2" />
-            <path
-              fill="#243246"
-              d="M18 8.2 20.1 11l3.2-.6.8 3.1 2.8 1.7-1.5 2.8.6 3.2-3.1.8-1.7 2.8-2.8-1.5-3.2.6-.8-3.1-2.8-1.7 1.5-2.8-.6-3.2 3.1-.8L15.9 11 18 8.2Zm0 4.3a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"
-            />
+            <g fill="#243246">
+              <rect x="16.4" y="5" width="3.2" height="6" rx="0.5" transform="rotate(0 18 18)" />
+              <rect x="16.4" y="5" width="3.2" height="6" rx="0.5" transform="rotate(45 18 18)" />
+              <rect x="16.4" y="5" width="3.2" height="6" rx="0.5" transform="rotate(90 18 18)" />
+              <rect x="16.4" y="5" width="3.2" height="6" rx="0.5" transform="rotate(135 18 18)" />
+              <rect x="16.4" y="5" width="3.2" height="6" rx="0.5" transform="rotate(180 18 18)" />
+              <rect x="16.4" y="5" width="3.2" height="6" rx="0.5" transform="rotate(225 18 18)" />
+              <rect x="16.4" y="5" width="3.2" height="6" rx="0.5" transform="rotate(270 18 18)" />
+              <rect x="16.4" y="5" width="3.2" height="6" rx="0.5" transform="rotate(315 18 18)" />
+              <circle cx="18" cy="18" r="7" />
+            </g>
+            <circle cx="18" cy="18" r="3" fill="#d7e4f2" />
           </svg>
           <div>
             <h1>Рабочее место эксперта</h1>
