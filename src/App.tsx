@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CURRENT_EXPERT, type Work } from "./domain.ts";
+import { CustomsCard } from "./CustomsCard.tsx";
+import { checkCustoms, cloneCustoms, createCustomsDossiers, customsSendBlockers, customsSendWarnings, type CustomsDossier } from "./customs.ts";
 import { ExcontCard, sendBlockers } from "./ExcontCard.tsx";
 import { checkExcont, cloneDossier, createExcontDossiers, sendWarnings, type CheckIssue, type ExcontDossier } from "./excont.ts";
 import { LaterScreen } from "./LaterScreen.tsx";
@@ -58,8 +60,10 @@ function readShowAgree(): boolean {
 export function App() {
   const started = useMemo(() => new Date(), []);
   const seedDossiers = useMemo(() => createExcontDossiers(), []);
+  const seedCustoms = useMemo(() => createCustomsDossiers(), []);
   const [works, setWorks] = useState<Work[]>(() => createSeedWorks(started));
   const [dossiers, setDossiers] = useState<Record<number, ExcontDossier>>(() => createExcontDossiers());
+  const [customs, setCustoms] = useState<Record<number, CustomsDossier>>(() => createCustomsDossiers());
   const [dirty, setDirty] = useState<Record<number, boolean>>({});
   const [issues, setIssues] = useState<CheckIssue[]>([]);
   const [cardNotice, setCardNotice] = useState<string | null>(null);
@@ -157,19 +161,23 @@ export function App() {
 
   function saveDossier(workId: number) {
     const dossier = dossiers[workId];
-    if (!dossier) return;
+    const customsDossier = customs[workId];
+    const description = dossier?.description ?? customsDossier?.description;
+    if (description == null) return;
     setDirty((current) => ({ ...current, [workId]: false }));
-    setWorks((current) => current.map((work) => work.id === workId ? { ...work, description: dossier.description } : work));
-    setCardNotice("Данные работы сохранены.");
+    setWorks((current) => current.map((work) => work.id === workId ? { ...work, description } : work));
+    setCardNotice(customsDossier ? "Данные сохранены." : "Данные работы сохранены.");
   }
 
   function reloadDossier(workId: number) {
     const source = seedDossiers[workId];
-    if (!source) return;
-    setDossiers((current) => ({ ...current, [workId]: cloneDossier(source) }));
+    const customsSource = seedCustoms[workId];
+    if (!source && !customsSource) return;
+    if (source) setDossiers((current) => ({ ...current, [workId]: cloneDossier(source) }));
+    if (customsSource) setCustoms((current) => ({ ...current, [workId]: cloneCustoms(customsSource) }));
     setDirty((current) => ({ ...current, [workId]: false }));
     setIssues([]);
-    setCardNotice("Данные перечитаны.");
+    setCardNotice(customsSource ? null : "Данные перечитаны.");
   }
 
   function requestSend(workId: number) {
@@ -179,8 +187,35 @@ export function App() {
 
   function confirmSend(workId: number) {
     const work = works.find((item) => item.id === workId);
+    if (!work) {
+      setPendingSend(null);
+      return;
+    }
+    if (work.type === "customUnion") {
+      const dossier = customs[workId];
+      if (!dossier) {
+        setPendingSend(null);
+        return;
+      }
+      const found = checkCustoms(dossier);
+      setIssues(found);
+      const blockers = customsSendBlockers(dossier, work);
+      if (blockers.length > 0) {
+        setPendingSend(null);
+        setPendingWarns([]);
+        setCardNotice(blockers[0]);
+        return;
+      }
+      const warns = customsSendWarnings(dossier);
+      if (warns.length > 0) {
+        setPendingWarns(warns);
+        return;
+      }
+      finishSend(workId);
+      return;
+    }
     const dossier = dossiers[workId];
-    if (!work || !dossier) {
+    if (!dossier) {
       setPendingSend(null);
       return;
     }
@@ -213,9 +248,9 @@ export function App() {
   }
 
   function finishSend(workId: number) {
-    const dossier = dossiers[workId];
+    const description = dossiers[workId]?.description ?? customs[workId]?.description;
     setWorks((current) => current.map((work) => work.id === workId
-      ? { ...work, condition: "agree", conditionName: "Утверждение", description: dossier?.description ?? work.description }
+      ? { ...work, condition: "agree", conditionName: "Утверждение", description: description ?? work.description }
       : work));
     setDirty((current) => ({ ...current, [workId]: false }));
     setPendingSend(null);
@@ -323,7 +358,7 @@ export function App() {
                 className="close"
                 aria-label={`Закрыть ${tab.title}`}
                 onClick={() => {
-                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && work.type === "excont")) {
+                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && (work.type === "excont" || work.type === "customUnion"))) {
                     requestClose(tab.key, tab.workId);
                   } else {
                     closeTab(tab.key);
@@ -338,7 +373,7 @@ export function App() {
       </nav>
       <main className="workspace">
         <p className="notice">
-          Демонстрационные данные той же формы, что карточка ДН. Строка соединения SQL в репозиториях не задана.
+          Демонстрационные данные той же формы, что карточки ДН и ЗиО. Строка соединения SQL в репозиториях не задана.
         </p>
         {activeTab.kind === "plan" && (
           <WorkPlan
@@ -375,7 +410,29 @@ export function App() {
             onClose={() => requestClose(activeTab.key, activeRow.work.id)}
           />
         )}
-        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && (
+        {activeTab.kind === "work" && activeRow && activeRow.work.type === "customUnion" && customs[activeRow.work.id] && (
+          <CustomsCard
+            work={activeRow.work}
+            dossier={customs[activeRow.work.id]}
+            issues={issues}
+            notice={cardNotice}
+            onChange={(next) => {
+              setCustoms((current) => ({ ...current, [next.workId]: next }));
+              setDirty((current) => ({ ...current, [next.workId]: true }));
+            }}
+            onSave={() => saveDossier(activeRow.work.id)}
+            onReload={() => reloadDossier(activeRow.work.id)}
+            onCheck={() => {
+              const found = checkCustoms(customs[activeRow.work.id]);
+              setIssues(found);
+              setCardNotice(found.length === 0 ? "Ошибок нет." : "В работе обнаружены ошибки.");
+            }}
+            onSend={() => requestSend(activeRow.work.id)}
+            onSign={() => setCardNotice("Подписание создает документы через DocumentCreate и переносит работу в архив. В этом срезе подпись не ставится.")}
+            onClose={() => requestClose(activeTab.key, activeRow.work.id)}
+          />
+        )}
+        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && (
           <WorkCard row={activeRow} onClose={() => closeTab(activeTab.key)} onOrder={openOrder} />
         )}
         {activeTab.kind === "order" && activeWork?.orderUrl && (

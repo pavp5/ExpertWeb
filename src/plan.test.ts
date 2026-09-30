@@ -10,12 +10,12 @@ test("план эксперта повторяет фильтр, группы, �
   const plan = buildPlan(createSeedWorks(now), CURRENT_EXPERT.id, false, now);
   assert.deepEqual(
     plan.rows.map((row) => row.work.id),
-    [18420, 18502, 18488, 18455, 18312, 18540, 18580, 18510, 18471, 18402],
+    [18420, 18502, 18488, 18455, 18312, 18540, 18580, 18510, 18471, 18402, 18610],
   );
-  assert.equal(plan.summary.total, 10);
+  assert.equal(plan.summary.total, 11);
   assert.equal(plan.summary.expired, 2);
-  assert.equal(plan.summary.laborMinutes, 660);
-  assert.equal(formatSummary(plan.summary), "Весь план: 10. Просрочено: 2. Суммарная трудоемкость: 11 ч. 0 мин.");
+  assert.equal(plan.summary.laborMinutes, 750);
+  assert.equal(formatSummary(plan.summary), "Весь план: 11. Просрочено: 2. Суммарная трудоемкость: 12 ч. 30 мин.");
 
   const byId = new Map(plan.rows.map((row) => [row.work.id, row]));
   assert.equal(byId.get(18502)?.groupText, "1. Подписание");
@@ -39,7 +39,7 @@ test("план эксперта повторяет фильтр, группы, �
 test("флажок «Утверждение» возвращает работы на утверждении и не меняет трудоёмкость", () => {
   const hidden = buildPlan(createSeedWorks(now), CURRENT_EXPERT.id, false, now);
   const shown = buildPlan(createSeedWorks(now), CURRENT_EXPERT.id, true, now);
-  assert.equal(shown.summary.total, 11);
+  assert.equal(shown.summary.total, 12);
   assert.equal(shown.summary.laborMinutes, hidden.summary.laborMinutes);
   assert.equal(shown.rows.at(-1)?.work.id, 18390);
   assert.equal(shown.rows.at(-1)?.groupText, "3. Утверждение");
