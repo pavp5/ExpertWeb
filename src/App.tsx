@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CURRENT_EXPERT, type Work } from "./domain.ts";
 import { CustomsCard } from "./CustomsCard.tsx";
 import { checkCustoms, cloneCustoms, createCustomsDossiers, customsSendBlockers, customsSendWarnings, type CustomsDossier } from "./customs.ts";
+import { TnvedCard } from "./TnvedCard.tsx";
+import { checkTnved, cloneTnved, createTnvedDossiers, tnvedSendBlockers, type TnvedDossier } from "./tnved.ts";
 import { ExcontCard, sendBlockers } from "./ExcontCard.tsx";
 import { checkExcont, cloneDossier, createExcontDossiers, sendWarnings, type CheckIssue, type ExcontDossier } from "./excont.ts";
 import { LaterScreen } from "./LaterScreen.tsx";
@@ -61,9 +63,11 @@ export function App() {
   const started = useMemo(() => new Date(), []);
   const seedDossiers = useMemo(() => createExcontDossiers(), []);
   const seedCustoms = useMemo(() => createCustomsDossiers(), []);
+  const seedTnved = useMemo(() => createTnvedDossiers(), []);
   const [works, setWorks] = useState<Work[]>(() => createSeedWorks(started));
   const [dossiers, setDossiers] = useState<Record<number, ExcontDossier>>(() => createExcontDossiers());
   const [customs, setCustoms] = useState<Record<number, CustomsDossier>>(() => createCustomsDossiers());
+  const [tnved, setTnved] = useState<Record<number, TnvedDossier>>(() => createTnvedDossiers());
   const [dirty, setDirty] = useState<Record<number, boolean>>({});
   const [issues, setIssues] = useState<CheckIssue[]>([]);
   const [cardNotice, setCardNotice] = useState<string | null>(null);
@@ -162,22 +166,25 @@ export function App() {
   function saveDossier(workId: number) {
     const dossier = dossiers[workId];
     const customsDossier = customs[workId];
-    const description = dossier?.description ?? customsDossier?.description;
+    const tnvedDossier = tnved[workId];
+    const description = dossier?.description ?? customsDossier?.description ?? tnvedDossier?.description;
     if (description == null) return;
     setDirty((current) => ({ ...current, [workId]: false }));
     setWorks((current) => current.map((work) => work.id === workId ? { ...work, description } : work));
-    setCardNotice(customsDossier ? "Данные сохранены." : "Данные работы сохранены.");
+    setCardNotice(dossier ? "Данные работы сохранены." : "Данные сохранены.");
   }
 
   function reloadDossier(workId: number) {
     const source = seedDossiers[workId];
     const customsSource = seedCustoms[workId];
-    if (!source && !customsSource) return;
+    const tnvedSource = seedTnved[workId];
+    if (!source && !customsSource && !tnvedSource) return;
     if (source) setDossiers((current) => ({ ...current, [workId]: cloneDossier(source) }));
     if (customsSource) setCustoms((current) => ({ ...current, [workId]: cloneCustoms(customsSource) }));
+    if (tnvedSource) setTnved((current) => ({ ...current, [workId]: cloneTnved(tnvedSource) }));
     setDirty((current) => ({ ...current, [workId]: false }));
     setIssues([]);
-    setCardNotice(customsSource ? null : "Данные перечитаны.");
+    setCardNotice(source && !customsSource && !tnvedSource ? "Данные перечитаны." : null);
   }
 
   function requestSend(workId: number) {
@@ -209,6 +216,24 @@ export function App() {
       const warns = customsSendWarnings(dossier);
       if (warns.length > 0) {
         setPendingWarns(warns);
+        return;
+      }
+      finishSend(workId);
+      return;
+    }
+    if (work.type === "tnved") {
+      const dossier = tnved[workId];
+      if (!dossier) {
+        setPendingSend(null);
+        return;
+      }
+      const found = checkTnved(dossier);
+      setIssues(found);
+      const blockers = tnvedSendBlockers(dossier, work);
+      if (blockers.length > 0) {
+        setPendingSend(null);
+        setPendingWarns([]);
+        setCardNotice(blockers[0]);
         return;
       }
       finishSend(workId);
@@ -248,7 +273,7 @@ export function App() {
   }
 
   function finishSend(workId: number) {
-    const description = dossiers[workId]?.description ?? customs[workId]?.description;
+    const description = dossiers[workId]?.description ?? customs[workId]?.description ?? tnved[workId]?.description;
     setWorks((current) => current.map((work) => work.id === workId
       ? { ...work, condition: "agree", conditionName: "Утверждение", description: description ?? work.description }
       : work));
@@ -358,7 +383,7 @@ export function App() {
                 className="close"
                 aria-label={`Закрыть ${tab.title}`}
                 onClick={() => {
-                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && (work.type === "excont" || work.type === "customUnion"))) {
+                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && (work.type === "excont" || work.type === "customUnion" || work.type === "tnved"))) {
                     requestClose(tab.key, tab.workId);
                   } else {
                     closeTab(tab.key);
@@ -373,7 +398,7 @@ export function App() {
       </nav>
       <main className="workspace">
         <p className="notice">
-          Демонстрационные данные той же формы, что карточки ДН и ЗиО. Строка соединения SQL в репозиториях не задана.
+          Демонстрационные данные той же формы, что карточки ДН, ЗиО и кода ТН ВЭД. Строка соединения SQL в репозиториях не задана.
         </p>
         {activeTab.kind === "plan" && (
           <WorkPlan
@@ -432,7 +457,29 @@ export function App() {
             onClose={() => requestClose(activeTab.key, activeRow.work.id)}
           />
         )}
-        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && (
+        {activeTab.kind === "work" && activeRow && activeRow.work.type === "tnved" && tnved[activeRow.work.id] && (
+          <TnvedCard
+            work={activeRow.work}
+            dossier={tnved[activeRow.work.id]}
+            issues={issues}
+            notice={cardNotice}
+            onChange={(next) => {
+              setTnved((current) => ({ ...current, [next.workId]: next }));
+              setDirty((current) => ({ ...current, [next.workId]: true }));
+            }}
+            onSave={() => saveDossier(activeRow.work.id)}
+            onReload={() => reloadDossier(activeRow.work.id)}
+            onCheck={() => {
+              const found = checkTnved(tnved[activeRow.work.id]);
+              setIssues(found);
+              setCardNotice(found.length === 0 ? "Ошибок нет." : "В работе обнаружены ошибки.");
+            }}
+            onSend={() => requestSend(activeRow.work.id)}
+            onSign={() => setCardNotice("Подписание создает документы через DocumentCreate и переносит работу в архив. В этом срезе подпись не ставится.")}
+            onClose={() => requestClose(activeTab.key, activeRow.work.id)}
+          />
+        )}
+        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && activeRow.work.type !== "customUnion" && activeRow.work.type !== "tnved" && (
           <WorkCard row={activeRow} onClose={() => closeTab(activeTab.key)} onOrder={openOrder} />
         )}
         {activeTab.kind === "order" && activeWork?.orderUrl && (
