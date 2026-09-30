@@ -410,6 +410,142 @@ tr.expired td {
 
 .dialog p {
   margin: 0 0 16px;
+  white-space: pre-line;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.excont-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  min-height: 420px;
+}
+
+.content-tree {
+  border-right: 1px solid var(--line);
+  padding: 12px;
+  max-height: calc(100vh - 280px);
+  overflow: auto;
+}
+
+.content-tree ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding-left: 14px;
+}
+
+.content-tree button {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  text-align: left;
+  padding: 3px 0;
+}
+
+.content-tree button[aria-current="true"] {
+  color: var(--steel);
+  font-weight: 650;
+}
+
+.excont-main {
+  padding: 16px 18px 8px;
+  min-width: 0;
+}
+
+.excont-main h2,
+.excont-main h3 {
+  margin: 0 0 10px;
+}
+
+.excont-main h3 {
+  margin-top: 16px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.stack input,
+.stack select,
+.stack textarea,
+.note textarea,
+.excont-main textarea {
+  width: 100%;
+  font: inherit;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+}
+
+.preview {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f7f4ee;
+  border-radius: 8px;
+}
+
+.plain-list {
+  padding-left: 18px;
+}
+
+.issues {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  padding: 12px 16px 16px;
+  background: #fff8f6;
+}
+
+.issues ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.issues button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 6px 0;
+}
+
+.issues small {
+  display: block;
+  color: var(--muted);
+}
+
+.inner-notice {
+  margin: 12px 14px 0;
+}
+
+.slim {
+  margin: 0;
+  padding: 8px 14px 12px;
+}
+
+.note {
+  margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .excont-body {
+    grid-template-columns: 1fr;
+  }
+
+  .content-tree {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    max-height: 220px;
+  }
 }
 
 @media (max-width: 720px) {

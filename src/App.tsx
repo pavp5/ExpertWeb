@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CURRENT_EXPERT } from "./domain.ts";
+import { CURRENT_EXPERT, type Work } from "./domain.ts";
+import { ExcontCard, sendBlockers } from "./ExcontCard.tsx";
+import { checkExcont, cloneDossier, createExcontDossiers, sendWarnings, type CheckIssue, type ExcontDossier } from "./excont.ts";
 import { LaterScreen } from "./LaterScreen.tsx";
 import { OrderCard } from "./OrderCard.tsx";
 import { buildPlan } from "./plan.ts";
@@ -55,7 +57,15 @@ function readShowAgree(): boolean {
 
 export function App() {
   const started = useMemo(() => new Date(), []);
-  const works = useMemo(() => createSeedWorks(started), [started]);
+  const seedDossiers = useMemo(() => createExcontDossiers(), []);
+  const [works, setWorks] = useState<Work[]>(() => createSeedWorks(started));
+  const [dossiers, setDossiers] = useState<Record<number, ExcontDossier>>(() => createExcontDossiers());
+  const [dirty, setDirty] = useState<Record<number, boolean>>({});
+  const [issues, setIssues] = useState<CheckIssue[]>([]);
+  const [cardNotice, setCardNotice] = useState<string | null>(null);
+  const [pendingClose, setPendingClose] = useState<string | null>(null);
+  const [pendingSend, setPendingSend] = useState<number | null>(null);
+  const [pendingWarns, setPendingWarns] = useState<string[]>([]);
   const [now, setNow] = useState(started);
   const [showAgree, setShowAgree] = useState(readShowAgree);
   const [reloadNote, setReloadNote] = useState<string | null>(null);
@@ -142,6 +152,95 @@ export function App() {
   function closeTab(key: string) {
     setTabs((current) => current.filter((tab) => tab.key !== key));
     setActive((current) => (current === key ? "plan" : current));
+    setCardNotice(null);
+  }
+
+  function saveDossier(workId: number) {
+    const dossier = dossiers[workId];
+    if (!dossier) return;
+    setDirty((current) => ({ ...current, [workId]: false }));
+    setWorks((current) => current.map((work) => work.id === workId ? { ...work, description: dossier.description } : work));
+    setCardNotice("Данные работы сохранены.");
+  }
+
+  function reloadDossier(workId: number) {
+    const source = seedDossiers[workId];
+    if (!source) return;
+    setDossiers((current) => ({ ...current, [workId]: cloneDossier(source) }));
+    setDirty((current) => ({ ...current, [workId]: false }));
+    setIssues([]);
+    setCardNotice("Данные перечитаны.");
+  }
+
+  function requestSend(workId: number) {
+    setPendingWarns([]);
+    setPendingSend(workId);
+  }
+
+  function confirmSend(workId: number) {
+    const work = works.find((item) => item.id === workId);
+    const dossier = dossiers[workId];
+    if (!work || !dossier) {
+      setPendingSend(null);
+      return;
+    }
+    const found = checkExcont(dossier);
+    setIssues(found);
+    const blockers = sendBlockers(dossier, work);
+    if (blockers.length > 0) {
+      setPendingSend(null);
+      setPendingWarns([]);
+      setCardNotice(blockers[0]);
+      return;
+    }
+    const warns = sendWarnings(dossier);
+    if (warns.length > 0) {
+      setPendingWarns(warns);
+      return;
+    }
+    finishSend(workId);
+  }
+
+  function confirmWarn() {
+    const rest = pendingWarns.slice(1);
+    if (rest.length > 0) {
+      setPendingWarns(rest);
+      return;
+    }
+    const workId = pendingSend;
+    setPendingWarns([]);
+    if (workId != null) finishSend(workId);
+  }
+
+  function finishSend(workId: number) {
+    const dossier = dossiers[workId];
+    setWorks((current) => current.map((work) => work.id === workId
+      ? { ...work, condition: "agree", conditionName: "Утверждение", description: dossier?.description ?? work.description }
+      : work));
+    setDirty((current) => ({ ...current, [workId]: false }));
+    setPendingSend(null);
+    setPendingWarns([]);
+    closeTab(`work:${workId}`);
+    setReloadNote("Работа отправлена на утверждение руководителю экспертизы.");
+  }
+
+  function requestClose(tabKey: string, workId: number) {
+    const work = works.find((item) => item.id === workId);
+    if (work?.condition === "work" && dirty[workId]) {
+      setPendingClose(tabKey);
+      return;
+    }
+    closeTab(tabKey);
+  }
+
+  function answerClose(choice: "yes" | "no") {
+    if (!pendingClose) return;
+    const workId = Number(pendingClose.split(":")[1]);
+    if (choice === "yes") saveDossier(workId);
+    if (choice === "no") reloadDossier(workId);
+    const tabKey = pendingClose;
+    setPendingClose(null);
+    closeTab(tabKey);
   }
 
   const activeTab = tabs.find((tab) => tab.key === active) ?? PLAN_TAB;
@@ -219,7 +318,18 @@ export function App() {
               {tab.title}
             </button>
             {tab.closable && (
-              <button type="button" className="close" aria-label={`Закрыть ${tab.title}`} onClick={() => closeTab(tab.key)}>
+              <button
+                type="button"
+                className="close"
+                aria-label={`Закрыть ${tab.title}`}
+                onClick={() => {
+                  if (tab.kind === "work" && tab.workId != null && works.some((work) => work.id === tab.workId && work.type === "excont")) {
+                    requestClose(tab.key, tab.workId);
+                  } else {
+                    closeTab(tab.key);
+                  }
+                }}
+              >
                 ×
               </button>
             )}
@@ -228,7 +338,7 @@ export function App() {
       </nav>
       <main className="workspace">
         <p className="notice">
-          Демонстрационные данные. База ЭксКонт и сборки Cprp в этом срезе не подключены.
+          Демонстрационные данные той же формы, что карточка ДН. Строка соединения SQL в репозиториях не задана.
         </p>
         {activeTab.kind === "plan" && (
           <WorkPlan
@@ -247,7 +357,25 @@ export function App() {
             onOrder={openOrder}
           />
         )}
-        {activeTab.kind === "work" && activeRow && (
+        {activeTab.kind === "work" && activeRow && activeRow.work.type === "excont" && dossiers[activeRow.work.id] && (
+          <ExcontCard
+            work={activeRow.work}
+            dossier={dossiers[activeRow.work.id]}
+            issues={issues}
+            notice={cardNotice}
+            onChange={(next) => {
+              setDossiers((current) => ({ ...current, [next.workId]: next }));
+              setDirty((current) => ({ ...current, [next.workId]: true }));
+            }}
+            onSave={() => saveDossier(activeRow.work.id)}
+            onReload={() => reloadDossier(activeRow.work.id)}
+            onCheck={() => setIssues(checkExcont(dossiers[activeRow.work.id]))}
+            onSend={() => requestSend(activeRow.work.id)}
+            onSign={() => setCardNotice("Подписание итоговых документов выполняется сборкой Cprp.Signature. В этом срезе подпись не ставится.")}
+            onClose={() => requestClose(activeTab.key, activeRow.work.id)}
+          />
+        )}
+        {activeTab.kind === "work" && activeRow && activeRow.work.type !== "excont" && (
           <WorkCard row={activeRow} onClose={() => closeTab(activeTab.key)} onOrder={openOrder} />
         )}
         {activeTab.kind === "order" && activeWork?.orderUrl && (
@@ -257,6 +385,31 @@ export function App() {
           <LaterScreen kind={activeTab.kind} />
         )}
       </main>
+      {pendingSend != null && (
+        <div className="dialog-backdrop">
+          <div className="dialog" role="alertdialog" aria-labelledby="send-title">
+            <h2 id="send-title">Работа № {pendingSend}</h2>
+            <p>{pendingWarns[0] ?? "Отправить работу на утверждение руководителю экспертизы?"}</p>
+            <div className="row-actions">
+              <button type="button" onClick={() => pendingWarns.length > 0 ? confirmWarn() : confirmSend(pendingSend)}>Да</button>
+              <button type="button" onClick={() => { setPendingSend(null); setPendingWarns([]); }}>Нет</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingClose != null && (
+        <div className="dialog-backdrop">
+          <div className="dialog" role="alertdialog" aria-labelledby="close-title">
+            <h2 id="close-title">Работа № {pendingClose.split(":")[1]}</h2>
+            <p>Данные работы были изменены. Сохранить?</p>
+            <div className="row-actions">
+              <button type="button" onClick={() => answerClose("yes")}>Да</button>
+              <button type="button" onClick={() => answerClose("no")}>Нет</button>
+              <button type="button" onClick={() => setPendingClose(null)}>Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
       {orderWarningId != null && (
         <div className="dialog-backdrop">
           <div className="dialog" role="alertdialog" aria-labelledby="order-warning-title" aria-modal="true">
