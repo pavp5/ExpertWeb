@@ -24,7 +24,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 10px 16px;
   background: #1f4e79;
   color: #fff;
@@ -34,9 +35,11 @@ body {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  min-width: 0;
 }
 
 .titlebar button {
+  flex: 0 0 auto;
   font: inherit;
   padding: 6px 12px;
   border: 0;
