@@ -61,7 +61,6 @@ app.MapGet("/api/documents", async (ExpertDb db) =>
         .Select(item => new
         {
             item.Id,
-            item.Kind,
             item.Code,
             item.Title,
             item.AdoptedOn,
@@ -78,7 +77,6 @@ app.MapGet("/api/documents/{id:int}", async (int id, ExpertDb db) =>
         .Select(item => new
         {
             item.Id,
-            item.Kind,
             item.Code,
             item.Title,
             item.AdoptedOn,

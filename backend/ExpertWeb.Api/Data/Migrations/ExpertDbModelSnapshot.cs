@@ -172,12 +172,6 @@ namespace ExpertWeb.Api.Data.Migrations
                         .HasColumnType("date")
                         .HasColumnName("effective_to");
 
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("kind");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -189,10 +183,7 @@ namespace ExpertWeb.Api.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("document", "ref", t =>
-                        {
-                            t.HasCheckConstraint("ck_document_kind", "kind in ('указ', 'постановление', 'контрольный список')");
-                        });
+                    b.ToTable("document", "ref");
 
                     b.HasData(
                         new
@@ -201,7 +192,6 @@ namespace ExpertWeb.Api.Data.Migrations
                             AdoptedOn = new DateOnly(2020, 1, 15),
                             Code = "ОБР-УКАЗ-1",
                             EffectiveFrom = new DateOnly(2020, 2, 1),
-                            Kind = "указ",
                             Title = "Образец указа"
                         },
                         new
@@ -211,7 +201,6 @@ namespace ExpertWeb.Api.Data.Migrations
                             Code = "ОБР-ПОСТ-1",
                             EffectiveFrom = new DateOnly(2021, 7, 1),
                             EffectiveTo = new DateOnly(2024, 12, 31),
-                            Kind = "постановление",
                             Title = "Образец постановления"
                         },
                         new
@@ -220,7 +209,6 @@ namespace ExpertWeb.Api.Data.Migrations
                             AdoptedOn = new DateOnly(2019, 3, 10),
                             Code = "ОБР-КС-1",
                             EffectiveFrom = new DateOnly(2019, 4, 1),
-                            Kind = "контрольный список",
                             Title = "Образец контрольного списка"
                         });
                 });

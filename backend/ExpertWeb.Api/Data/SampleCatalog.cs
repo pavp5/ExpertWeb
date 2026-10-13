@@ -30,7 +30,6 @@ public static class SampleCatalog
             new NormativeDocument
             {
                 Id = 1,
-                Kind = DocumentKind.Decree,
                 Code = "ОБР-УКАЗ-1",
                 Title = "Образец указа",
                 AdoptedOn = new DateOnly(2020, 1, 15),
@@ -40,7 +39,6 @@ public static class SampleCatalog
             new NormativeDocument
             {
                 Id = 2,
-                Kind = DocumentKind.Resolution,
                 Code = "ОБР-ПОСТ-1",
                 Title = "Образец постановления",
                 AdoptedOn = new DateOnly(2021, 6, 1),
@@ -50,7 +48,6 @@ public static class SampleCatalog
             new NormativeDocument
             {
                 Id = 3,
-                Kind = DocumentKind.ControlList,
                 Code = "ОБР-КС-1",
                 Title = "Образец контрольного списка",
                 AdoptedOn = new DateOnly(2019, 3, 10),

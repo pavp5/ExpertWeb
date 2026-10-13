@@ -1,14 +1,5 @@
 namespace ExpertWeb.Api.Catalog;
 
-public static class DocumentKind
-{
-    public const string Decree = "указ";
-    public const string Resolution = "постановление";
-    public const string ControlList = "контрольный список";
-
-    public static readonly string[] All = [Decree, Resolution, ControlList];
-}
-
 public sealed class Country
 {
     public int Id { get; set; }
@@ -35,7 +26,6 @@ public sealed class Tnved
 public sealed class NormativeDocument
 {
     public int Id { get; set; }
-    public string Kind { get; set; } = "";
     public string Code { get; set; } = "";
     public string Title { get; set; } = "";
     public DateOnly AdoptedOn { get; set; }

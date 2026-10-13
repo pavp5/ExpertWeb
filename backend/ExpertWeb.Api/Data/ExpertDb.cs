@@ -48,11 +48,8 @@ public sealed class ExpertDb(DbContextOptions<ExpertDb> options) : DbContext(opt
 
         modelBuilder.Entity<NormativeDocument>(entity =>
         {
-            entity.ToTable("document", table => table.HasCheckConstraint(
-                "ck_document_kind",
-                "kind in ('указ', 'постановление', 'контрольный список')"));
+            entity.ToTable("document");
             entity.Property(item => item.Id).HasColumnName("id");
-            entity.Property(item => item.Kind).HasColumnName("kind").HasMaxLength(32).IsRequired();
             entity.Property(item => item.Code).HasColumnName("code").HasMaxLength(64).IsRequired();
             entity.Property(item => item.Title).HasColumnName("title").HasMaxLength(500).IsRequired();
             entity.Property(item => item.AdoptedOn).HasColumnName("adopted_on");
